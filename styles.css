@@ -616,6 +616,7 @@ html[data-theme="light"] .icon-moon { display: block; }
 }
 
 .primary-btn:hover { background: var(--accent-hover); }
+.primary-btn:disabled { opacity: 0.55; cursor: default; }
 
 .danger-btn {
   background: var(--danger);
@@ -805,6 +806,9 @@ html[data-theme="light"] .icon-moon { display: block; }
   background: currentColor;
 }
 
+.status-moving { color: var(--accent); background: var(--accent-dim); }
+.status-parked { color: var(--info); background: var(--info-dim); }
+.status-offline { color: var(--text-muted); background: var(--border-subtle); }
 .status-Online { color: var(--ok); background: var(--ok-dim); }
 .status-Charging { color: var(--info); background: var(--info-dim); }
 .status-Returning { color: var(--accent); background: var(--accent-dim); }
@@ -1010,7 +1014,307 @@ html[data-theme="light"] .icon-moon { display: block; }
 
 .map-svg-wrap svg { display: block; width: 100%; height: auto; }
 
-.checkin-btn { width: 100%; margin: 0 0 0.7rem; }
+.map-column { min-width: 0; }
+
+.map-stage {
+  position: relative;
+  height: 12.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #d5dee8;
+}
+
+#leaflet-map {
+  width: 100%;
+  height: 100%;
+  background: #d5dee8;
+  z-index: 0;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+  line-height: 1.25;
+  max-width: 68%;
+}
+
+.map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.center-van-btn {
+  position: static;
+  z-index: 1;
+  margin: 0;
+  flex-shrink: 0;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.65rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 750;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.center-van-btn:hover { background: var(--accent-hover); }
+.center-van-btn:disabled { opacity: 0.62; cursor: default; }
+
+.map-tile-note {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  top: 3.55rem;
+  z-index: 500;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(12, 16, 23, 0.9);
+  color: #f3e6c4;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-align: center;
+  pointer-events: none;
+}
+
+.map-tile-note[hidden] { display: none !important; }
+
+.van-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.van-marker {
+  --pin: #7aa2f7;
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 6px));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  min-width: 0;
+  max-width: 3.7rem;
+  min-height: 2.35rem;
+  padding: 0.1rem 0.28rem 0.12rem;
+  border-radius: 12px;
+  border: 2px solid var(--pin);
+  background: rgba(12, 18, 28, 0.94);
+  color: #e8eef7;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  line-height: 1.15;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.van-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+  border-width: 7px 6px 0;
+  border-style: solid;
+  border-color: var(--pin) transparent transparent;
+}
+
+.van-marker.is-moving { --pin: #3ecfbe; }
+.van-marker.is-parked { --pin: #7aa2f7; }
+.van-marker.is-offline { --pin: #8b98ad; opacity: 0.92; }
+.van-marker.is-you { --pin: #3ecfbe; }
+
+.van-marker.is-selected {
+  z-index: 3;
+  box-shadow: 0 0 0 3px rgba(62, 207, 190, 0.45), 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.van-marker.is-moving .van-marker-id::before {
+  animation: van-pulse 2.2s ease-out infinite;
+}
+
+@keyframes van-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(62, 207, 190, 0.55); }
+  100% { box-shadow: 0 0 0 7px rgba(62, 207, 190, 0); }
+}
+
+.van-marker-who {
+  display: block;
+  max-width: 3.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.van-marker-who.is-empty {
+  font-weight: 650;
+  color: #9aa8bc;
+}
+
+.van-marker-id {
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  font-weight: 650;
+  color: #9aa8bc;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.van-marker-id::before {
+  content: "";
+  display: inline-block;
+  width: 0.38rem;
+  height: 0.38rem;
+  margin-right: 0.22rem;
+  border-radius: 50%;
+  background: var(--pin);
+  vertical-align: 0;
+}
+
+.map-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  color: #d5deea;
+  background: rgba(8, 14, 18, 0.55);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.map-empty[hidden] { display: none !important; }
+
+.van-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.van-legend li { display: inline-flex; align-items: center; }
+
+.van-legend i {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.van-legend .is-moving { background: #3ecfbe; }
+.van-legend .is-parked { background: #7aa2f7; }
+.van-legend .is-offline { background: #8b98ad; }
+
+#view-locations .lede { margin-top: 0.3rem; }
+#view-locations .note { margin-top: 0.5rem; padding: 0.5rem 0.75rem; }
+#view-locations .map-layout { margin-top: 0.55rem; }
+#view-locations .van-session { margin-bottom: 0.55rem; }
+
+.locations-search { margin-top: 0.65rem; }
+
+.van-count {
+  margin: 0.55rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.van-session {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+
+.van-select select {
+  width: 100%;
+  font-size: 1rem;
+}
+
+.van-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.van-session-actions .primary-btn,
+.van-session-actions .ghost-btn {
+  margin: 0;
+  flex: 1 1 8.5rem;
+}
+
+.van-session-status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.van-card {
+  margin-top: 0.75rem;
+  padding: 0.9rem 0.95rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.van-card[hidden] { display: none !important; }
+
+.van-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.van-card-head .status-pill { margin-right: auto; }
+
+.van-card-head h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+.van-card-updated {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.van-card h4 {
+  margin: 0.85rem 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.van-card-close {
+  margin: 0;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.65rem;
+  flex-shrink: 0;
+}
 
 .fa-panel {
   background: var(--surface);
@@ -1019,7 +1323,21 @@ html[data-theme="light"] .icon-moon { display: block; }
   padding: 0.9rem;
 }
 
-.fa-panel h3 { margin: 0 0 0.6rem; font-size: 0.95rem; }
+.fa-panel h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+
+.fa-panel-note {
+  margin: 0 0 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.fa-unassigned-empty {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.fa-unassigned-empty[hidden] { display: none !important; }
 
 .fa-list {
   list-style: none;
@@ -1047,8 +1365,29 @@ html[data-theme="light"] .icon-moon { display: block; }
   place-items: center;
   font-size: 0.65rem;
   font-weight: 800;
-  background: var(--accent-dim);
+  background: var(--info-dim);
+  color: var(--info);
+}
+
+.fa-avatar.is-you {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.you-tag {
+  display: inline-block;
+  margin-left: 0.28rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--accent);
+}
+
+.fa-list li.fa-empty {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .fa-list .fa-name { font-weight: 650; }

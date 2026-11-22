@@ -15,6 +15,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <script>
     (function () {
       try {
@@ -51,7 +52,7 @@
     </div>
   </header>
 
-  <div id="offline-banner" class="offline-banner" hidden role="status">You're offline. Check-ins and robot commands will be queued on this device until you're back online.</div>
+  <div id="offline-banner" class="offline-banner" hidden role="status">You're offline. Van sign-in and robot commands will be queued on this device until you're back online.</div>
 
   <main id="main">
     <!-- HOME / LAUNCHER -->
@@ -209,19 +210,64 @@
       <div class="view-intro">
         <div class="title-row">
           <h2>FA Locations</h2>
-          <span class="sim-badge">Simulated — sample map only</span>
+          <span class="sim-badge">Simulated — sample vans only</span>
         </div>
-        <p class="lede">A made-up service grid used to show how on-clock field associates could check in. No real people, GPS, or company maps are used.</p>
-        <p class="note">Real location sharing would apply only while on the clock. Off-clock teammates are hidden in this demo, just as they would be in a live tool.</p>
+        <p class="lede">Sample vans on a map of Los Angeles. An FA shows up on the van they are signed into.</p>
+        <p class="note" id="locations-note">On shift, your location comes from the signed-in van. No personal phone GPS is used.</p>
+        <label class="search-wrap locations-search">
+          <span class="visually-hidden">Search by FA name or van ID</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+          </svg>
+          <input type="search" id="van-search" placeholder="Search FA name or van ID…" autocomplete="off" spellcheck="false" />
+        </label>
+        <p class="van-count" id="van-count"></p>
       </div>
       <div class="map-layout">
-        <div class="map-frame">
-          <button type="button" class="primary-btn checkin-btn" id="check-in-btn">Check in my location</button>
-          <div id="map-svg-wrap" class="map-svg-wrap"></div>
+        <div class="map-column">
+          <div class="van-session">
+            <label class="select-field van-select">
+              <span>Sign into a van</span>
+              <select id="van-select"></select>
+            </label>
+            <div class="van-session-actions">
+              <button type="button" class="primary-btn" id="van-signin-btn">Sign into van</button>
+              <button type="button" class="ghost-btn" id="van-signout-btn" hidden>Sign out</button>
+            </div>
+            <p class="van-session-status" id="van-session-status"></p>
+          </div>
+          <div class="map-frame">
+            <div class="map-stage" role="region" aria-label="Map of Los Angeles. Van pins are labeled with the field associates signed in.">
+              <div id="leaflet-map"></div>
+              <div id="van-markers" class="van-markers"></div>
+              <p id="map-tile-note" class="map-tile-note" hidden>Map tiles need signal. Van cards and lists still work on this phone.</p>
+              <p id="van-map-empty" class="map-empty" hidden>No vans match that search.</p>
+            </div>
+            <div class="map-toolbar">
+              <ul class="van-legend">
+                <li><i class="is-moving" aria-hidden="true"></i>Moving</li>
+                <li><i class="is-parked" aria-hidden="true"></i>Parked</li>
+                <li><i class="is-offline" aria-hidden="true"></i>Offline</li>
+              </ul>
+              <button type="button" class="center-van-btn" id="center-van-btn" disabled>Center on my van</button>
+            </div>
+          </div>
+          <article class="van-card" id="van-card" hidden aria-labelledby="van-card-id">
+            <div class="van-card-head">
+              <h3 id="van-card-id"></h3>
+              <span class="status-pill" id="van-card-status"></span>
+              <button type="button" class="ghost-btn van-card-close" id="van-card-close">Close</button>
+            </div>
+            <p class="van-card-updated" id="van-card-updated"></p>
+            <h4>Signed in</h4>
+            <ul class="fa-list" id="van-card-fas"></ul>
+          </article>
         </div>
         <aside class="fa-panel">
-          <h3>On the clock</h3>
-          <ul id="fa-list" class="fa-list"></ul>
+          <h3>Not in a van</h3>
+          <p class="fa-panel-note">These field associates are not shown on the map.</p>
+          <ul id="fa-unassigned" class="fa-list"></ul>
+          <p class="fa-unassigned-empty" id="fa-unassigned-empty" hidden></p>
         </aside>
       </div>
     </section>
@@ -264,6 +310,7 @@
     <p>Personal portfolio demo. Sample data and placeholder links only. Not affiliated with, or used by, any employer.</p>
   </footer>
 
+  <script src="vendor/leaflet/leaflet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
