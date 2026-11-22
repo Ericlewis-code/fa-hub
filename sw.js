@@ -1,11 +1,18 @@
 /* FA Hub service worker — caches the demo app for offline use. Sample data only. */
-var CACHE = "fahub-v2";
+var CACHE = "fahub-v3";
 var ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.json",
+  "./vendor/leaflet/leaflet.css",
+  "./vendor/leaflet/leaflet.js",
+  "./vendor/leaflet/images/layers.png",
+  "./vendor/leaflet/images/layers-2x.png",
+  "./vendor/leaflet/images/marker-icon.png",
+  "./vendor/leaflet/images/marker-icon-2x.png",
+  "./vendor/leaflet/images/marker-shadow.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon-192-maskable.png",
@@ -42,6 +49,8 @@ self.addEventListener("fetch", function (event) {
   if (request.method !== "GET") return;
 
   var url = new URL(request.url);
+  /* Map tiles stay on the network. The app shell is cached; tiles are not. */
+  if (url.hostname === "tile.openstreetmap.org") return;
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(

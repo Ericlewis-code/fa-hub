@@ -8,7 +8,7 @@ GitHub Pages serves this repository from the `main` branch root, so the app is p
 
 <img src="screenshots-demo/phone-home.png" alt="Home: searchable tool launcher with sample tools" width="240" />
 <img src="screenshots-demo/phone-robots-commands.png" alt="Robot Commands: simulated commands for sample robot DEMO-0421" width="240" />
-<img src="screenshots-demo/phone-locations.png" alt="FA Locations: sample vans labeled with the field associates signed in" width="240" />
+<img src="screenshots-demo/phone-locations.png" alt="FA Locations: sample vans on a map of Los Angeles" width="240" />
 
 A personal **phone app** (installable PWA) for field ops: one home screen for the tools a field operations associate bounces between on a shift. Built on personal time, with **fake sample data and placeholder links only**. It is not affiliated with, used by, or connected to any employer.
 
@@ -50,7 +50,7 @@ Use the bottom tabs to move between **Home**, **My Shift**, **Robots**, and **Lo
 2. Tap the menu (three dots) and choose **Install app** (sometimes **Add to Home screen**), or tap the install icon in the address bar if it appears.
 3. Confirm, then open **FA Hub** from the home screen.
 
-Once installed, the app caches its pages and icons so the launcher, shift checklist, robot lookup, and map still open when signal is poor. Van sign-in and robot commands made while offline are queued on the device and marked synced when you’re back online (this demo has no real server). The service worker cache name is versioned so an installed phone picks up a new copy after the cache version changes.
+Once installed, the app caches its pages, icons, and the vendored map library so the launcher, shift checklist, robot lookup, and van list still open when signal is poor. Map tiles are not cached: if they cannot load, Locations says map tiles need signal, and the van cards and lists keep working. Van sign-in and robot commands made while offline are queued on the device and marked synced when you’re back online (this demo has no real server). The service worker cache name is versioned so an installed phone picks up a new copy after the cache version changes.
 
 ## Hosting
 
@@ -65,8 +65,8 @@ This repo is set up for **GitHub Pages** from the `main` branch, folder `/ (root
 - **Launcher** — Searchable tiles for Rippling, Slack, Notion, Jira, Samsara, Driver Authenticator, Ramp, Google Meet, Gmail, Google Docs, Authenticator, Tailscale, plus in-demo Robot Commands and FA Locations. Category chips, favorites, and recently opened tools.
 - **My Shift** — Start, mid, and end-of-shift checklist that persists on this device and resets each day.
 - **Robot Commands** — A simulated fleet of 2,200 units (`DEMO-0001`–`DEMO-2200`). Search by full or partial ID, filter by status / battery / zone, sort, and page through results. The search bar stays sticky while you scroll. Selecting a robot opens a detail panel with simulated emote and bin commands: Smile, Thanks, Excuse me, Unlock bin, Lock bin. Unlock bin asks for confirmation. Commands only append a timestamped line to the on-screen activity log.
-- **FA Locations** — An inline SVG of a made-up “Cedar Grid” area. Sample vans (`VAN-01`–`VAN-10`) each have a position on that map, a last-updated time, and a status of moving, parked, or offline. Pins are labeled with the field associates signed into that van. Tapping a van opens a card with the van ID, who is signed in, how long since the last update, and the status. Associates who are not in a van are listed under “Not in a van” and are not drawn on the map. Search filters by FA name or van ID. “Sign into van” / “Sign out” is a simulated control for you: it moves your pin onto that van, saves in `localStorage`, and works offline. Moving vans nudge every few seconds. While you are on shift, location comes from the signed-in van — no personal phone GPS is used.
-- **Installable PWA** — `manifest.json`, 192×192 and 512×512 icons, and a service worker that caches the app for offline use. Offline check-ins and command-log entries are queued locally.
+- **FA Locations** — An interactive map of Los Angeles (Leaflet with OpenStreetMap tiles, attribution included, no API key). Leaflet’s JavaScript and CSS are vendored in the repo, so the app shell does not depend on a CDN. Sample vans (`VAN-01`–`VAN-10`) sit on public streets across Hollywood, West Hollywood, Koreatown, Downtown, Silver Lake, Echo Park, Mid-City, Fairfax, East Hollywood, and Chinatown. These are generic sample points, not real company addresses. Each van has a last-updated time and a status of moving, parked, or offline. Pins are labeled with the field associates signed into that van. Tapping a van opens a card with the van ID, who is signed in, how long since the last update, and the status. The map fits all vans on load, and **Center on my van** zooms to the van you are signed into. Associates who are not in a van are listed under “Not in a van” and are not drawn on the map. Search filters by FA name or van ID. “Sign into van” / “Sign out” moves your pin onto that van, saves in `localStorage`, and works offline. Moving vans nudge a short distance along the street every few seconds. While you are on shift, location comes from the signed-in van — no personal phone GPS is used. If tiles cannot load, the screen says map tiles need signal; van cards and lists still work.
+- **Installable PWA** — `manifest.json`, 192×192 and 512×512 icons, and a service worker that caches the app shell (including Leaflet) for offline use. Map tiles are not cached. Van sign-in and command-log entries are queued locally.
 
 Placeholder links go to `https://example.com/...`. No real company URLs, logos, credentials, or internal names are used.
 

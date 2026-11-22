@@ -15,6 +15,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
   <script>
     (function () {
       try {
@@ -209,9 +210,9 @@
       <div class="view-intro">
         <div class="title-row">
           <h2>FA Locations</h2>
-          <span class="sim-badge">Simulated — sample map only</span>
+          <span class="sim-badge">Simulated — sample vans only</span>
         </div>
-        <p class="lede">Sample vans on a made-up Cedar Grid. An FA shows up on the van they are signed into.</p>
+        <p class="lede">Sample vans on a map of Los Angeles. An FA shows up on the van they are signed into.</p>
         <p class="note" id="locations-note">On shift, your location comes from the signed-in van. No personal phone GPS is used.</p>
         <label class="search-wrap locations-search">
           <span class="visually-hidden">Search by FA name or van ID</span>
@@ -236,16 +237,20 @@
             <p class="van-session-status" id="van-session-status"></p>
           </div>
           <div class="map-frame">
-            <div class="map-stage" role="group" aria-label="Sample map of Cedar Grid. Van pins are labeled with the field associates signed in.">
-              <div id="map-svg-wrap" class="map-svg-wrap"></div>
+            <div class="map-stage" role="region" aria-label="Map of Los Angeles. Van pins are labeled with the field associates signed in.">
+              <div id="leaflet-map"></div>
               <div id="van-markers" class="van-markers"></div>
+              <p id="map-tile-note" class="map-tile-note" hidden>Map tiles need signal. Van cards and lists still work on this phone.</p>
               <p id="van-map-empty" class="map-empty" hidden>No vans match that search.</p>
             </div>
-            <ul class="van-legend">
-              <li><i class="is-moving" aria-hidden="true"></i>Moving</li>
-              <li><i class="is-parked" aria-hidden="true"></i>Parked</li>
-              <li><i class="is-offline" aria-hidden="true"></i>Offline</li>
-            </ul>
+            <div class="map-toolbar">
+              <ul class="van-legend">
+                <li><i class="is-moving" aria-hidden="true"></i>Moving</li>
+                <li><i class="is-parked" aria-hidden="true"></i>Parked</li>
+                <li><i class="is-offline" aria-hidden="true"></i>Offline</li>
+              </ul>
+              <button type="button" class="center-van-btn" id="center-van-btn" disabled>Center on my van</button>
+            </div>
           </div>
           <article class="van-card" id="van-card" hidden aria-labelledby="van-card-id">
             <div class="van-card-head">
@@ -305,6 +310,7 @@
     <p>Personal portfolio demo. Sample data and placeholder links only. Not affiliated with, or used by, any employer.</p>
   </footer>
 
+  <script src="vendor/leaflet/leaflet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

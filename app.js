@@ -87,18 +87,18 @@
     }, [])
   );
 
-  /* Positions are viewBox units on the Cedar Grid SVG (0 0 100 66). */
+  /* Generic points on public streets. Not real company addresses. */
   var VANS = [
-    { id: "VAN-01", status: "moving", x: 20, y: 24, heading: 25, lastMin: 0 },
-    { id: "VAN-02", status: "parked", x: 22, y: 41, heading: 0, lastMin: 18 },
-    { id: "VAN-03", status: "moving", x: 50, y: 26, heading: 200, lastMin: 0 },
-    { id: "VAN-04", status: "offline", x: 80, y: 24, heading: 0, lastMin: 140 },
-    { id: "VAN-05", status: "parked", x: 50, y: 41, heading: 0, lastMin: 7 },
-    { id: "VAN-06", status: "moving", x: 80, y: 41, heading: 150, lastMin: 0 },
-    { id: "VAN-07", status: "parked", x: 16, y: 58, heading: 0, lastMin: 33 },
-    { id: "VAN-08", status: "moving", x: 38, y: 58, heading: 340, lastMin: 0 },
-    { id: "VAN-09", status: "parked", x: 60, y: 58, heading: 0, lastMin: 12 },
-    { id: "VAN-10", status: "offline", x: 82, y: 58, heading: 0, lastMin: 260 }
+    { id: "VAN-01", status: "moving", area: "Hollywood", lat: 34.1016, lng: -118.3440, heading: 20, lastMin: 0 },
+    { id: "VAN-02", status: "parked", area: "West Hollywood", lat: 34.0906, lng: -118.3852, heading: 0, lastMin: 18 },
+    { id: "VAN-03", status: "moving", area: "Koreatown", lat: 34.0622, lng: -118.3005, heading: 110, lastMin: 0 },
+    { id: "VAN-04", status: "offline", area: "Downtown", lat: 34.0395, lng: -118.2535, heading: 0, lastMin: 140 },
+    { id: "VAN-05", status: "parked", area: "Silver Lake", lat: 34.0928, lng: -118.2702, heading: 0, lastMin: 7 },
+    { id: "VAN-06", status: "moving", area: "Echo Park", lat: 34.0690, lng: -118.2585, heading: 200, lastMin: 0 },
+    { id: "VAN-07", status: "parked", area: "Mid-City", lat: 34.0460, lng: -118.3535, heading: 0, lastMin: 33 },
+    { id: "VAN-08", status: "moving", area: "Fairfax", lat: 34.0688, lng: -118.3616, heading: 300, lastMin: 0 },
+    { id: "VAN-09", status: "parked", area: "East Hollywood", lat: 34.0962, lng: -118.2875, heading: 0, lastMin: 12 },
+    { id: "VAN-10", status: "offline", area: "Chinatown", lat: 34.0638, lng: -118.2368, heading: 0, lastMin: 260 }
   ];
 
   var FAS = [
@@ -791,11 +791,13 @@
 
   /* ---------- locations ---------- */
   var selectedVanId = null;
-  var mapReady = false;
-  var VAN_MIN_X = 16;
-  var VAN_MAX_X = 86;
-  var VAN_MIN_Y = 20;
-  var VAN_MAX_Y = 58;
+  var laMap = null;
+  var tileLayer = null;
+  var tileOk = false;
+  var vansFitted = false;
+  var EARTH_M_PER_DEG_LAT = 111320;
+  var NUDGE_STEP_M = 42;
+  var NUDGE_RADIUS_M = 220;
 
   function vanById(id) {
     for (var i = 0; i < VANS.length; i++) if (VANS[i].id === id) return VANS[i];
@@ -811,6 +813,8 @@
   function initVans() {
     var now = Date.now();
     VANS.forEach(function (van) {
+      van.homeLat = van.lat;
+      van.homeLng = van.lng;
       van.updatedAt = now - van.lastMin * 60000;
     });
     try { localStorage.removeItem("fahub-my-checkin"); } catch (e) {}
@@ -888,36 +892,140 @@
     return VANS.filter(function (van) { return vanMatches(van, q); });
   }
 
+  function showTileNote(on) {
+    var note = $("map-tile-note");
+    if (note) note.hidden = !on;
+  }
+
+  function onMapOffline() {
+    showTileNote(true);
+  }
+
+  function onMapOnline() {
+    tileOk = false;
+    if (tileLayer) tileLayer.redraw();
+  }
+
+  function fitVans() {
+    if (!laMap || typeof L === "undefined") return;
+    var bounds = L.latLngBounds(VANS.map(function (van) { return [van.lat, van.lng]; }));
+    laMap.fitBounds(bounds, { paddingTopLeft: [36, 64], paddingBottomRight: [36, 36] });
+  }
+
   function ensureMap() {
-    if (mapReady) return;
-    var zoneLabels = "";
-    var letters = ZONE_LETTERS;
-    var originX = 10, originY = 8, cellW = 17, cellH = 7;
-    for (var c = 0; c < letters.length; c++) {
-      for (var r = 0; r < 8; r++) {
-        var x = originX + c * cellW + 1.2;
-        var y = originY + r * cellH + 2.3;
-        zoneLabels += '<text x="' + x + '" y="' + y + '" font-size="2" font-family="system-ui,sans-serif" fill="#6b788c">' + letters[c] + (r + 1) + "</text>";
+    var el = $("leaflet-map");
+    if (!el || typeof L === "undefined") return;
+    if (!laMap) {
+      laMap = L.map(el, {
+        zoomControl: false,
+        attributionControl: true,
+        zoomSnap: 0,
+        zoomDelta: 0.5,
+        minZoom: 10,
+        maxZoom: 18
+      });
+      laMap.setView([34.062, -118.31], 11);
+      tileLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      });
+      tileLayer.on("tileerror", function () {
+        if (!tileOk || !isOnline()) showTileNote(true);
+      });
+      tileLayer.on("tileload", function () {
+        tileOk = true;
+        if (isOnline()) showTileNote(false);
+      });
+      tileLayer.addTo(laMap);
+      laMap.on("move zoom resize", layoutMarkers);
+      if (!isOnline()) showTileNote(true);
+    }
+    requestAnimationFrame(function () {
+      if (!laMap) return;
+      laMap.invalidateSize();
+      if (!vansFitted) {
+        fitVans();
+        vansFitted = true;
+        el.dataset.fitted = "1";
       }
+      layoutMarkers();
+    });
+  }
+
+  function positionMarkers() {
+    if (!laMap) return;
+    var wrap = $("van-markers");
+    if (!wrap) return;
+    wrap.querySelectorAll(".van-marker").forEach(function (el) {
+      var van = vanById(el.getAttribute("data-van"));
+      if (!van) return;
+      var point = laMap.latLngToContainerPoint([van.lat, van.lng]);
+      el.style.left = point.x + "px";
+      el.style.top = point.y + "px";
+      el.dataset.lat = van.lat.toFixed(5);
+      el.dataset.lng = van.lng.toFixed(5);
+      el.dataset.lift = "0";
+      el.dataset.shift = "0";
+      el.style.transform = "translate(-50%, calc(-100% - 6px))";
+    });
+  }
+
+  function layoutMarkers() {
+    positionMarkers();
+    relaxLabels();
+  }
+
+  function relaxLabels() {
+    var stage = document.querySelector(".map-stage");
+    if (!stage) return;
+    var limit = stage.getBoundingClientRect();
+    var nodes = Array.prototype.slice.call(document.querySelectorAll(".van-marker"));
+    function place(el) {
+      var lift = parseFloat(el.dataset.lift || "0");
+      var shift = parseFloat(el.dataset.shift || "0");
+      el.style.transform = "translate(calc(-50% + " + shift + "px), calc(-100% - 6px - " + lift + "px))";
     }
-    var gridLines = "";
-    for (var gx = 0; gx <= 5; gx++) {
-      var xx = originX + gx * cellW;
-      gridLines += '<line x1="' + xx + '" y1="' + originY + '" x2="' + xx + '" y2="' + (originY + 8 * cellH) + '" stroke="#243044" stroke-width="0.25"/>';
+    for (var pass = 0; pass < 14; pass++) {
+      var moved = false;
+      for (var i = 0; i < nodes.length; i++) {
+        for (var j = i + 1; j < nodes.length; j++) {
+          var a = nodes[i].getBoundingClientRect();
+          var b = nodes[j].getBoundingClientRect();
+          var overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          var overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (overlapX <= 2 || overlapY <= 2) continue;
+          var upper = a.top <= b.top ? nodes[i] : nodes[j];
+          var upperBox = upper === nodes[i] ? a : b;
+          var extra = Math.min(overlapY + 4, 28);
+          if (upperBox.top - extra >= limit.top + 1) {
+            upper.dataset.lift = String(parseFloat(upper.dataset.lift || "0") + extra);
+            place(upper);
+          } else {
+            var rightOne = a.left > b.left ? nodes[i] : nodes[j];
+            var rightBox = rightOne === nodes[i] ? a : b;
+            var nudge = Math.min(overlapX + 4, 24);
+            var dir = rightBox.right + nudge <= limit.right - 1 ? 1 : -1;
+            rightOne.dataset.shift = String(parseFloat(rightOne.dataset.shift || "0") + dir * nudge);
+            place(rightOne);
+          }
+          moved = true;
+        }
+      }
+      if (!moved) break;
     }
-    for (var gy = 0; gy <= 8; gy++) {
-      var yy = originY + gy * cellH;
-      gridLines += '<line x1="' + originX + '" y1="' + yy + '" x2="' + (originX + 5 * cellW) + '" y2="' + yy + '" stroke="#243044" stroke-width="0.25"/>';
+  }
+
+  function centerOnMyVan() {
+    var session = vanSession();
+    var van = session && vanById(session.vanId);
+    if (!laMap || !van) {
+      showToast("Sign into a van to center the map.");
+      return;
     }
-    $("map-svg-wrap").innerHTML =
-      '<svg viewBox="0 0 100 66" aria-hidden="true" focusable="false">' +
-        '<rect width="100" height="66" fill="#0e1a16"/>' +
-        '<rect x="0" y="0" width="100" height="7" fill="#163047"/>' +
-        '<text x="3" y="4.7" font-size="2.3" font-family="system-ui,sans-serif" fill="#8b98ad">North Channel (sample water)</text>' +
-        gridLines +
-        zoneLabels +
-      "</svg>";
-    mapReady = true;
+    laMap.setView([van.lat, van.lng], 16, { animate: true });
+    selectedVanId = van.id;
+    renderVanMarkers();
+    renderVanCard();
   }
 
   function markerLabelHtml(people) {
@@ -936,14 +1044,14 @@
     var who = people.length
       ? people.map(function (p) { return p.name; }).join(", ")
       : "no one signed in";
-    return van.id + ", " + statusLabel(van.status) + ", " + who + ". Updated " + formatAge(van.updatedAt) + ".";
+    return van.id + " in " + van.area + ", " + statusLabel(van.status) + ", " + who + ". Updated " + formatAge(van.updatedAt) + ".";
   }
 
   function renderVanSelect() {
     var sel = $("van-select");
     if (!sel || sel.dataset.filled) return;
     sel.innerHTML = VANS.map(function (van) {
-      return '<option value="' + van.id + '">' + van.id + " · " + statusLabel(van.status) + "</option>";
+      return '<option value="' + van.id + '">' + van.id + " · " + escapeHtml(van.area) + " · " + statusLabel(van.status) + "</option>";
     }).join("");
     sel.dataset.filled = "1";
     var session = vanSession();
@@ -961,6 +1069,11 @@
     } else {
       outBtn.hidden = true;
       status.textContent = "You are not on the map until you sign into a van.";
+    }
+    var centerBtn = $("center-van-btn");
+    if (centerBtn) {
+      centerBtn.disabled = !session;
+      centerBtn.title = session ? "Center the map on " + session.vanId : "Sign into a van first";
     }
   }
 
@@ -987,11 +1100,8 @@
       var you = people.some(function (p) { return p.isYou; });
       var sig = van.status + "|" + (van.id === selectedVanId ? "1" : "0") + "|" + (you ? "y" : "n") + "|" +
         people.map(function (p) { return p.id; }).join(",");
-      el.style.left = van.x + "%";
-      el.style.top = (van.y / 66 * 100) + "%";
-      el.dataset.x = String(Math.round(van.x * 100) / 100);
-      el.dataset.y = String(Math.round(van.y * 100) / 100);
       el.dataset.status = van.status;
+      el.dataset.area = van.area;
       el.setAttribute("aria-label", markerAria(van, people));
       if (el.dataset.sig !== sig) {
         el.dataset.sig = sig;
@@ -1007,9 +1117,7 @@
     });
     var empty = $("van-map-empty");
     if (empty) empty.hidden = vans.length > 0;
-    if (!wrap.classList.contains("is-live")) {
-      requestAnimationFrame(function () { wrap.classList.add("is-live"); });
-    }
+    layoutMarkers();
   }
 
   function renderVanCard() {
@@ -1132,69 +1240,36 @@
       : "Signed out. You're no longer on the map.");
   }
 
-  function clampVan(van) {
-    van.x = Math.max(VAN_MIN_X, Math.min(VAN_MAX_X, van.x));
-    van.y = Math.max(VAN_MIN_Y, Math.min(VAN_MAX_Y, van.y));
-  }
-
-  function separateVans() {
-    var minDist = 17;
-    for (var i = 0; i < VANS.length; i++) {
-      for (var j = i + 1; j < VANS.length; j++) {
-        var a = VANS[i];
-        var b = VANS[j];
-        var dx = b.x - a.x;
-        var dy = b.y - a.y;
-        var dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
-        if (dist >= minDist) continue;
-        var overlap = minDist - dist;
-        var ux = dx / dist;
-        var uy = dy / dist;
-        if (a.status === "moving" && b.status === "moving") {
-          a.x -= ux * overlap / 2;
-          a.y -= uy * overlap / 2;
-          b.x += ux * overlap / 2;
-          b.y += uy * overlap / 2;
-        } else if (a.status === "moving") {
-          a.x -= ux * overlap;
-          a.y -= uy * overlap;
-        } else if (b.status === "moving") {
-          b.x += ux * overlap;
-          b.y += uy * overlap;
-        }
-      }
-    }
-    VANS.forEach(function (van) {
-      if (van.status === "moving") clampVan(van);
-    });
+  function metersFromHome(van, lat, lng) {
+    var north = (lat - van.homeLat) * EARTH_M_PER_DEG_LAT;
+    var east = (lng - van.homeLng) * EARTH_M_PER_DEG_LAT * Math.cos(van.homeLat * Math.PI / 180);
+    return Math.sqrt(north * north + east * east);
   }
 
   function nudgeVans() {
     VANS.forEach(function (van) {
       if (van.status !== "moving") return;
-      van.heading += (Math.random() - 0.5) * 28;
+      van.heading += (Math.random() - 0.5) * 24;
       var rad = van.heading * Math.PI / 180;
-      var nx = van.x + Math.cos(rad) * 1.35;
-      var ny = van.y + Math.sin(rad) * 0.95;
-      if (nx < VAN_MIN_X || nx > VAN_MAX_X) {
-        van.heading = 180 - van.heading;
-        nx = Math.max(VAN_MIN_X, Math.min(VAN_MAX_X, nx));
+      var east = Math.cos(rad) * NUDGE_STEP_M;
+      var north = Math.sin(rad) * NUDGE_STEP_M;
+      var cosLat = Math.cos(van.lat * Math.PI / 180) || 0.01;
+      var nextLat = van.lat + north / EARTH_M_PER_DEG_LAT;
+      var nextLng = van.lng + east / (EARTH_M_PER_DEG_LAT * cosLat);
+      if (metersFromHome(van, nextLat, nextLng) > NUDGE_RADIUS_M) {
+        van.heading += 180;
+        return;
       }
-      if (ny < VAN_MIN_Y || ny > VAN_MAX_Y) {
-        van.heading = -van.heading;
-        ny = Math.max(VAN_MIN_Y, Math.min(VAN_MAX_Y, ny));
-      }
-      van.x = nx;
-      van.y = ny;
+      van.lat = nextLat;
+      van.lng = nextLng;
       van.updatedAt = Date.now();
     });
-    separateVans();
   }
 
   function tickVans() {
     nudgeVans();
     if (currentView !== "locations") return;
-    renderVanMarkers();
+    layoutMarkers();
     updateVanCardTime();
   }
 
@@ -1332,6 +1407,7 @@
 
     $("van-signin-btn").addEventListener("click", doSignIn);
     $("van-signout-btn").addEventListener("click", doSignOut);
+    $("center-van-btn").addEventListener("click", centerOnMyVan);
 
     $("van-markers").addEventListener("click", function (e) {
       var btn = e.target.closest("[data-van]");
@@ -1442,8 +1518,12 @@
     window.addEventListener("online", function () {
       setOfflineBanner();
       flushQueue();
+      onMapOnline();
     });
-    window.addEventListener("offline", setOfflineBanner);
+    window.addEventListener("offline", function () {
+      setOfflineBanner();
+      onMapOffline();
+    });
     setOfflineBanner();
     registerServiceWorker();
     buildFleet();
