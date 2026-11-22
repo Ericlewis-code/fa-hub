@@ -1,5 +1,5 @@
 /* FA Hub service worker — caches the demo app for offline use. Sample data only. */
-var CACHE = "fahub-v1";
+var CACHE = "fahub-v2";
 var ASSETS = [
   "./",
   "./index.html",

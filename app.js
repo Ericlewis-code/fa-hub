@@ -12,7 +12,7 @@
     shift: "fahub-shift",
     recentRobots: "fahub-recent-robots",
     activity: "fahub-activity",
-    checkin: "fahub-my-checkin",
+    vanSession: "fahub-van-session",
     queue: "fahub-offline-queue"
   };
 
@@ -32,7 +32,7 @@
     { id: "authenticator", name: "Authenticator", purpose: "Two-factor codes", category: "Security", href: "https://example.com/authenticator" },
     { id: "tailscale", name: "Tailscale", purpose: "VPN for internal tools", category: "Security", href: "https://example.com/tailscale" },
     { id: "robots", name: "Robot Commands", purpose: "Look up a unit and send emotes", category: "Ops", href: "#robots", internal: true },
-    { id: "locations", name: "FA Locations", purpose: "On-clock check-in on a sample map", category: "Ops", href: "#locations", internal: true }
+    { id: "locations", name: "FA Locations", purpose: "See which van each FA is signed into", category: "Ops", href: "#locations", internal: true }
   ];
 
   var SHIFT_SECTIONS = [
@@ -45,7 +45,7 @@
         { id: "start-slack", label: "Check the shift Slack channel for handoff notes" },
         { id: "start-auth", label: "Confirm Authenticator is ready for sign-in" },
         { id: "start-fleet", label: "Scan the demo fleet for low-battery or offline units" },
-        { id: "start-checkin", label: "Check in my location (on the clock only)" }
+        { id: "start-checkin", label: "Sign into my van (on shift only)" }
       ]
     },
     {
@@ -56,7 +56,7 @@
         { id: "mid-samsara", label: "Check Samsara for vehicle or driver issues" },
         { id: "mid-robots", label: "Look up any unit that needs an emote or bin command" },
         { id: "mid-jira", label: "Open or update a Jira ticket if a unit needs a tech" },
-        { id: "mid-loc", label: "Update my location if I change zones" }
+        { id: "mid-loc", label: "Sign into a different van if I switch vehicles" }
       ]
     },
     {
@@ -87,16 +87,35 @@
     }, [])
   );
 
-  var FAS = [
-    { id: "je", name: "Jordan Ellis", initials: "JE", onClock: true, zone: "B3", x: 35.5, y: 25.5, lastMin: 6 },
-    { id: "so", name: "Sam Okada", initials: "SO", onClock: true, zone: "A1", x: 18.5, y: 11.5, lastMin: 14 },
-    { id: "ps", name: "Priya Shah", initials: "PS", onClock: true, zone: "C2", x: 52.5, y: 18.5, lastMin: 3 },
-    { id: "ar", name: "Alex Rivera", initials: "AR", onClock: false, zone: "D1", x: 69.5, y: 11.5, lastMin: 180 },
-    { id: "ml", name: "Morgan Lee", initials: "ML", onClock: true, zone: "B1", x: 35.5, y: 11.5, lastMin: 9 },
-    { id: "cn", name: "Chris Nguyen", initials: "CN", onClock: false, zone: "C6", x: 52.5, y: 46.5, lastMin: 420 },
-    { id: "tb", name: "Taylor Brooks", initials: "TB", onClock: true, zone: "D4", x: 69.5, y: 32.5, lastMin: 21 },
-    { id: "rk", name: "Riley Kim", initials: "RK", onClock: true, zone: "E2", x: 86.5, y: 18.5, lastMin: 11 }
+  /* Positions are viewBox units on the Cedar Grid SVG (0 0 100 66). */
+  var VANS = [
+    { id: "VAN-01", status: "moving", x: 20, y: 24, heading: 25, lastMin: 0 },
+    { id: "VAN-02", status: "parked", x: 22, y: 41, heading: 0, lastMin: 18 },
+    { id: "VAN-03", status: "moving", x: 50, y: 26, heading: 200, lastMin: 0 },
+    { id: "VAN-04", status: "offline", x: 80, y: 24, heading: 0, lastMin: 140 },
+    { id: "VAN-05", status: "parked", x: 50, y: 41, heading: 0, lastMin: 7 },
+    { id: "VAN-06", status: "moving", x: 80, y: 41, heading: 150, lastMin: 0 },
+    { id: "VAN-07", status: "parked", x: 16, y: 58, heading: 0, lastMin: 33 },
+    { id: "VAN-08", status: "moving", x: 38, y: 58, heading: 340, lastMin: 0 },
+    { id: "VAN-09", status: "parked", x: 60, y: 58, heading: 0, lastMin: 12 },
+    { id: "VAN-10", status: "offline", x: 82, y: 58, heading: 0, lastMin: 260 }
   ];
+
+  var FAS = [
+    { id: "je", name: "Jordan Ellis", initials: "JE", vanId: "VAN-01" },
+    { id: "so", name: "Sam Okada", initials: "SO", vanId: "VAN-02" },
+    { id: "ps", name: "Priya Shah", initials: "PS", vanId: "VAN-03" },
+    { id: "ml", name: "Morgan Lee", initials: "ML", vanId: "VAN-03" },
+    { id: "tb", name: "Taylor Brooks", initials: "TB", vanId: "VAN-05" },
+    { id: "rk", name: "Riley Kim", initials: "RK", vanId: "VAN-06" },
+    { id: "cp", name: "Casey Patel", initials: "CP", vanId: "VAN-07" },
+    { id: "do", name: "Dana Ortiz", initials: "DO", vanId: "VAN-08" },
+    { id: "ar", name: "Alex Rivera", initials: "AR", vanId: null },
+    { id: "cn", name: "Chris Nguyen", initials: "CN", vanId: null },
+    { id: "qa", name: "Quinn Adeyemi", initials: "QA", vanId: null }
+  ];
+
+  var ME = { id: "me", name: "You (demo)", initials: "YO" };
 
   /* ---------- utilities ---------- */
   function $(id) { return document.getElementById(id); }
@@ -707,7 +726,7 @@
     var q = load(KEYS.queue, []);
     if (!q.length) return;
     var hadCommands = false;
-    var hadCheckin = false;
+    var hadVan = false;
     q.forEach(function (item) {
       if (item.type === "command" && item.payload && item.payload.ts) {
         activity.forEach(function (entry) {
@@ -715,10 +734,13 @@
         });
         hadCommands = true;
       }
-      if (item.type === "checkin") {
-        var me = load(KEYS.checkin, null);
-        if (me) { me.queued = false; save(KEYS.checkin, me); }
-        hadCheckin = true;
+      if (item.type === "van-session" || item.type === "checkin") {
+        var session = load(KEYS.vanSession, null);
+        if (session && session.queued) {
+          session.queued = false;
+          save(KEYS.vanSession, session);
+        }
+        hadVan = true;
       }
     });
     save(KEYS.queue, []);
@@ -726,7 +748,7 @@
       save(KEYS.activity, activity);
       if (selectedRobotId) renderActivity(selectedRobotId);
     }
-    if (hadCheckin && currentView === "locations") renderLocations();
+    if (hadVan && currentView === "locations") renderLocations();
     var n = q.length;
     showToast(n + " queued " + (n === 1 ? "action" : "actions") + " synced (demo — no server)");
   }
@@ -768,59 +790,106 @@
   }
 
   /* ---------- locations ---------- */
-  function myCheckin() {
-    return load(KEYS.checkin, null);
+  var selectedVanId = null;
+  var mapReady = false;
+  var VAN_MIN_X = 16;
+  var VAN_MAX_X = 86;
+  var VAN_MIN_Y = 20;
+  var VAN_MAX_Y = 58;
+
+  function vanById(id) {
+    for (var i = 0; i < VANS.length; i++) if (VANS[i].id === id) return VANS[i];
+    return null;
   }
 
-  function minutesAgoLabel(mins) {
-    if (mins < 1) return "Just now";
-    if (mins === 1) return "1 min ago";
-    if (mins < 60) return mins + " min ago";
-    var hours = Math.round(mins / 60);
-    return hours + " hr ago";
+  function vanSession() {
+    var data = load(KEYS.vanSession, null);
+    if (!data || !data.vanId || !vanById(data.vanId)) return null;
+    return data;
   }
 
-  function visibleFAs() {
-    var list = FAS.filter(function (f) { return f.onClock; }).map(function (f) {
-      return {
-        id: f.id,
-        name: f.name,
-        initials: f.initials,
-        zone: f.zone,
-        x: f.x,
-        y: f.y,
-        last: minutesAgoLabel(f.lastMin),
-        isYou: false
-      };
+  function initVans() {
+    var now = Date.now();
+    VANS.forEach(function (van) {
+      van.updatedAt = now - van.lastMin * 60000;
     });
-    var me = myCheckin();
-    if (me) {
-      list.unshift({
-        id: "me",
-        name: "You (demo)",
-        initials: "YO",
-        zone: me.zone,
-        x: me.x,
-        y: me.y,
-        last: formatLastSeen(new Date(me.ts)) + (me.queued ? " · queued offline" : ""),
-        isYou: true
-      });
+    try { localStorage.removeItem("fahub-my-checkin"); } catch (e) {}
+  }
+
+  function statusLabel(status) {
+    if (status === "moving") return "Moving";
+    if (status === "parked") return "Parked";
+    return "Offline";
+  }
+
+  function formatAge(ts) {
+    var sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (sec < 10) return "Just now";
+    if (sec < 60) return sec + " sec ago";
+    var mins = Math.round(sec / 60);
+    if (mins < 60) return mins === 1 ? "1 min ago" : mins + " min ago";
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return hours === 1 ? "1 hr ago" : hours + " hr ago";
+    var days = Math.round(hours / 24);
+    return days + " day" + (days === 1 ? "" : "s") + " ago";
+  }
+
+  function faFirst(person) {
+    if (person.isYou || person.name === ME.name) return "You";
+    return String(person.name).split(" ")[0];
+  }
+
+  function vanQuery() {
+    var input = $("van-search");
+    return ((input && input.value) || "").trim().toLowerCase();
+  }
+
+  function peopleInVan(vanId) {
+    var list = FAS.filter(function (f) { return f.vanId === vanId; }).map(function (f) {
+      return { id: f.id, name: f.name, initials: f.initials, isYou: false };
+    });
+    var session = vanSession();
+    if (session && session.vanId === vanId) {
+      list.push({ id: ME.id, name: ME.name, initials: ME.initials, isYou: true });
     }
     return list;
   }
 
-  function renderLocations() {
-    var people = visibleFAs();
-    var pins = people.map(function (p) {
-      var fill = p.isYou ? "#3ecfbe" : "#7aa2f7";
-      return (
-        '<g class="fa-pin" transform="translate(' + p.x + ' ' + p.y + ')">' +
-          '<circle r="2.6" fill="' + fill + '" stroke="#0c1017" stroke-width="0.5"/>' +
-          '<text y="-3.4" text-anchor="middle" font-size="2.4" font-family="system-ui,sans-serif" font-weight="700" fill="#e8eef7">' + escapeHtml(p.initials) + "</text>" +
-        "</g>"
-      );
-    }).join("");
+  function unassignedPeople() {
+    var list = [];
+    if (!vanSession()) {
+      list.push({ id: ME.id, name: ME.name, initials: ME.initials, isYou: true });
+    }
+    FAS.forEach(function (f) {
+      if (!f.vanId) list.push({ id: f.id, name: f.name, initials: f.initials, isYou: false });
+    });
+    return list;
+  }
 
+  function personMatches(person, q) {
+    if (!q) return true;
+    if (person.name.toLowerCase().indexOf(q) !== -1) return true;
+    if (person.initials.toLowerCase().indexOf(q) !== -1) return true;
+    return false;
+  }
+
+  function vanMatches(van, q) {
+    if (!q) return true;
+    if (van.id.toLowerCase().indexOf(q) !== -1) return true;
+    var people = peopleInVan(van.id);
+    for (var i = 0; i < people.length; i++) {
+      if (personMatches(people[i], q)) return true;
+    }
+    return false;
+  }
+
+  function filteredVans() {
+    var q = vanQuery();
+    return VANS.filter(function (van) { return vanMatches(van, q); });
+  }
+
+  function ensureMap() {
+    if (mapReady) return;
     var zoneLabels = "";
     var letters = ZONE_LETTERS;
     var originX = 10, originY = 8, cellW = 17, cellH = 7;
@@ -831,7 +900,6 @@
         zoneLabels += '<text x="' + x + '" y="' + y + '" font-size="2" font-family="system-ui,sans-serif" fill="#6b788c">' + letters[c] + (r + 1) + "</text>";
       }
     }
-
     var gridLines = "";
     for (var gx = 0; gx <= 5; gx++) {
       var xx = originX + gx * cellW;
@@ -841,41 +909,293 @@
       var yy = originY + gy * cellH;
       gridLines += '<line x1="' + originX + '" y1="' + yy + '" x2="' + (originX + 5 * cellW) + '" y2="' + yy + '" stroke="#243044" stroke-width="0.25"/>';
     }
-
     $("map-svg-wrap").innerHTML =
-      '<svg viewBox="0 0 100 66" role="img" aria-label="Sample map of Cedar Grid, a made-up service area">' +
+      '<svg viewBox="0 0 100 66" aria-hidden="true" focusable="false">' +
         '<rect width="100" height="66" fill="#0e1a16"/>' +
         '<rect x="0" y="0" width="100" height="7" fill="#163047"/>' +
         '<text x="3" y="4.7" font-size="2.3" font-family="system-ui,sans-serif" fill="#8b98ad">North Channel (sample water)</text>' +
         gridLines +
         zoneLabels +
-        pins +
       "</svg>";
+    mapReady = true;
+  }
 
-    $("fa-list").innerHTML = people.map(function (p) {
+  function markerLabelHtml(people) {
+    if (!people.length) return '<span class="van-marker-who is-empty">Empty</span>';
+    if (people.length === 1) {
+      return '<span class="van-marker-who">' + escapeHtml(faFirst(people[0])) + "</span>";
+    }
+    if (people.length === 2) {
+      return '<span class="van-marker-who">' + escapeHtml(faFirst(people[0])) + "</span>" +
+        '<span class="van-marker-who">' + escapeHtml(faFirst(people[1])) + "</span>";
+    }
+    return '<span class="van-marker-who">' + escapeHtml(faFirst(people[0])) + " +" + (people.length - 1) + "</span>";
+  }
+
+  function markerAria(van, people) {
+    var who = people.length
+      ? people.map(function (p) { return p.name; }).join(", ")
+      : "no one signed in";
+    return van.id + ", " + statusLabel(van.status) + ", " + who + ". Updated " + formatAge(van.updatedAt) + ".";
+  }
+
+  function renderVanSelect() {
+    var sel = $("van-select");
+    if (!sel || sel.dataset.filled) return;
+    sel.innerHTML = VANS.map(function (van) {
+      return '<option value="' + van.id + '">' + van.id + " · " + statusLabel(van.status) + "</option>";
+    }).join("");
+    sel.dataset.filled = "1";
+    var session = vanSession();
+    if (session) sel.value = session.vanId;
+  }
+
+  function renderSigninControl() {
+    var session = vanSession();
+    var status = $("van-session-status");
+    var outBtn = $("van-signout-btn");
+    if (session) {
+      outBtn.hidden = false;
+      status.textContent = "You're signed into " + session.vanId + ". Your pin is on that van." +
+        (session.queued ? " Saved on this device while offline." : "");
+    } else {
+      outBtn.hidden = true;
+      status.textContent = "You are not on the map until you sign into a van.";
+    }
+  }
+
+  function renderVanMarkers() {
+    var wrap = $("van-markers");
+    if (!wrap) return;
+    var vans = filteredVans();
+    var existing = Object.create(null);
+    wrap.querySelectorAll(".van-marker").forEach(function (el) {
+      existing[el.getAttribute("data-van")] = el;
+    });
+    var seen = Object.create(null);
+    vans.forEach(function (van) {
+      seen[van.id] = true;
+      var people = peopleInVan(van.id);
+      var el = existing[van.id];
+      if (!el) {
+        el = document.createElement("button");
+        el.type = "button";
+        el.className = "van-marker";
+        el.setAttribute("data-van", van.id);
+        wrap.appendChild(el);
+      }
+      var you = people.some(function (p) { return p.isYou; });
+      var sig = van.status + "|" + (van.id === selectedVanId ? "1" : "0") + "|" + (you ? "y" : "n") + "|" +
+        people.map(function (p) { return p.id; }).join(",");
+      el.style.left = van.x + "%";
+      el.style.top = (van.y / 66 * 100) + "%";
+      el.dataset.x = String(Math.round(van.x * 100) / 100);
+      el.dataset.y = String(Math.round(van.y * 100) / 100);
+      el.dataset.status = van.status;
+      el.setAttribute("aria-label", markerAria(van, people));
+      if (el.dataset.sig !== sig) {
+        el.dataset.sig = sig;
+        el.className = "van-marker is-" + van.status +
+          (you ? " is-you" : "") +
+          (van.id === selectedVanId ? " is-selected" : "");
+        el.setAttribute("aria-pressed", van.id === selectedVanId ? "true" : "false");
+        el.innerHTML = markerLabelHtml(people) + '<span class="van-marker-id">' + escapeHtml(van.id) + "</span>";
+      }
+    });
+    Object.keys(existing).forEach(function (id) {
+      if (!seen[id]) existing[id].parentNode.removeChild(existing[id]);
+    });
+    var empty = $("van-map-empty");
+    if (empty) empty.hidden = vans.length > 0;
+    if (!wrap.classList.contains("is-live")) {
+      requestAnimationFrame(function () { wrap.classList.add("is-live"); });
+    }
+  }
+
+  function renderVanCard() {
+    var card = $("van-card");
+    if (!card) return;
+    var van = selectedVanId ? vanById(selectedVanId) : null;
+    var q = vanQuery();
+    if (!van || !vanMatches(van, q)) {
+      selectedVanId = null;
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    $("van-card-id").textContent = van.id;
+    var pill = $("van-card-status");
+    pill.textContent = statusLabel(van.status);
+    pill.className = "status-pill status-" + van.status;
+    $("van-card-updated").textContent = "Last update · " + formatAge(van.updatedAt);
+    var people = peopleInVan(van.id);
+    var list = $("van-card-fas");
+    if (!people.length) {
+      list.innerHTML = '<li class="fa-empty">No one is signed into this van.</li>';
+      return;
+    }
+    list.innerHTML = people.map(function (p) {
       return (
-        "<li>" +
-          '<span class="fa-avatar">' + escapeHtml(p.initials) + "</span>" +
-          '<span><span class="fa-name">' + escapeHtml(p.name) + '</span><span class="fa-sub">Last check-in · ' + escapeHtml(p.last) + "</span></span>" +
-          '<span class="fa-zone">' + escapeHtml(p.zone) + "</span>" +
+        '<li data-fa="' + p.id + '">' +
+          '<span class="fa-avatar' + (p.isYou ? " is-you" : "") + '">' + escapeHtml(p.initials) + "</span>" +
+          '<span class="fa-name">' + escapeHtml(p.name) + (p.isYou ? ' <span class="you-tag">You</span>' : "") + "</span>" +
         "</li>"
       );
     }).join("");
-
-    var btn = $("check-in-btn");
-    btn.textContent = myCheckin() ? "Update my check-in" : "Check in my location";
   }
 
-  function doCheckin() {
-    var data = { zone: "C4", x: 52.5, y: 32.5, ts: Date.now() };
+  function updateVanCardTime() {
+    if (!selectedVanId || !$("van-card") || $("van-card").hidden) return;
+    var van = vanById(selectedVanId);
+    if (!van) return;
+    $("van-card-updated").textContent = "Last update · " + formatAge(van.updatedAt);
+  }
+
+  function renderUnassigned() {
+    var q = vanQuery();
+    var people = unassignedPeople().filter(function (p) { return personMatches(p, q); });
+    var list = $("fa-unassigned");
+    var empty = $("fa-unassigned-empty");
+    if (!people.length) {
+      list.innerHTML = "";
+      empty.hidden = false;
+      empty.textContent = q ? "No one outside a van matches that search." : "Everyone is signed into a van.";
+      return;
+    }
+    empty.hidden = true;
+    list.innerHTML = people.map(function (p) {
+      return (
+        '<li data-fa="' + p.id + '">' +
+          '<span class="fa-avatar' + (p.isYou ? " is-you" : "") + '">' + escapeHtml(p.initials) + "</span>" +
+          '<span><span class="fa-name">' + escapeHtml(p.name) + (p.isYou ? ' <span class="you-tag">You</span>' : "") + "</span>" +
+          '<span class="fa-sub">Not signed into a van</span></span>' +
+        "</li>"
+      );
+    }).join("");
+  }
+
+  function renderVanCount() {
+    var q = vanQuery();
+    var vans = filteredVans();
+    var people = unassignedPeople().filter(function (p) { return personMatches(p, q); });
+    var vanText = q
+      ? vans.length + (vans.length === 1 ? " van matches" : " vans match")
+      : vans.length + " vans";
+    var peopleText = people.length + " not in a van";
+    $("van-count").textContent = vanText + " · " + peopleText;
+  }
+
+  function renderLocations() {
+    ensureMap();
+    renderVanSelect();
+    renderSigninControl();
+    renderVanCard();
+    renderVanMarkers();
+    renderUnassigned();
+    renderVanCount();
+  }
+
+  function doSignIn() {
+    var vanId = $("van-select").value;
+    if (!vanById(vanId)) return;
+    var current = vanSession();
+    if (current && current.vanId === vanId) {
+      showToast("You're already signed into " + vanId + ".");
+      selectedVanId = vanId;
+      renderLocations();
+      return;
+    }
+    if ($("van-search")) $("van-search").value = "";
     var offline = !isOnline();
-    if (offline) data.queued = true;
-    save(KEYS.checkin, data);
-    if (offline) enqueue("checkin", data);
+    var data = { vanId: vanId, ts: Date.now(), queued: offline };
+    save(KEYS.vanSession, data);
+    if (offline) enqueue("van-session", data);
+    selectedVanId = vanId;
     renderLocations();
     showToast(offline
-      ? "Check-in at C4 queued on this device (offline)."
-      : "Checked in at C4 (sample pin). Location sharing is a demo only.");
+      ? "Signed into " + vanId + " on this device (offline)."
+      : "Signed into " + vanId + ". Your pin moved to that van.");
+  }
+
+  function doSignOut() {
+    if (!vanSession()) {
+      showToast("You're not signed into a van.");
+      return;
+    }
+    if ($("van-search")) $("van-search").value = "";
+    var offline = !isOnline();
+    try { localStorage.removeItem(KEYS.vanSession); } catch (e) {}
+    if (offline) enqueue("van-session", { vanId: null, ts: Date.now() });
+    renderLocations();
+    showToast(offline
+      ? "Signed out on this device (offline). You're no longer on the map."
+      : "Signed out. You're no longer on the map.");
+  }
+
+  function clampVan(van) {
+    van.x = Math.max(VAN_MIN_X, Math.min(VAN_MAX_X, van.x));
+    van.y = Math.max(VAN_MIN_Y, Math.min(VAN_MAX_Y, van.y));
+  }
+
+  function separateVans() {
+    var minDist = 17;
+    for (var i = 0; i < VANS.length; i++) {
+      for (var j = i + 1; j < VANS.length; j++) {
+        var a = VANS[i];
+        var b = VANS[j];
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        if (dist >= minDist) continue;
+        var overlap = minDist - dist;
+        var ux = dx / dist;
+        var uy = dy / dist;
+        if (a.status === "moving" && b.status === "moving") {
+          a.x -= ux * overlap / 2;
+          a.y -= uy * overlap / 2;
+          b.x += ux * overlap / 2;
+          b.y += uy * overlap / 2;
+        } else if (a.status === "moving") {
+          a.x -= ux * overlap;
+          a.y -= uy * overlap;
+        } else if (b.status === "moving") {
+          b.x += ux * overlap;
+          b.y += uy * overlap;
+        }
+      }
+    }
+    VANS.forEach(function (van) {
+      if (van.status === "moving") clampVan(van);
+    });
+  }
+
+  function nudgeVans() {
+    VANS.forEach(function (van) {
+      if (van.status !== "moving") return;
+      van.heading += (Math.random() - 0.5) * 28;
+      var rad = van.heading * Math.PI / 180;
+      var nx = van.x + Math.cos(rad) * 1.35;
+      var ny = van.y + Math.sin(rad) * 0.95;
+      if (nx < VAN_MIN_X || nx > VAN_MAX_X) {
+        van.heading = 180 - van.heading;
+        nx = Math.max(VAN_MIN_X, Math.min(VAN_MAX_X, nx));
+      }
+      if (ny < VAN_MIN_Y || ny > VAN_MAX_Y) {
+        van.heading = -van.heading;
+        ny = Math.max(VAN_MIN_Y, Math.min(VAN_MAX_Y, ny));
+      }
+      van.x = nx;
+      van.y = ny;
+      van.updatedAt = Date.now();
+    });
+    separateVans();
+  }
+
+  function tickVans() {
+    nudgeVans();
+    if (currentView !== "locations") return;
+    renderVanMarkers();
+    updateVanCardTime();
   }
 
   /* ---------- events ---------- */
@@ -1006,7 +1326,29 @@
       renderActivity(selectedRobotId);
     });
 
-    $("check-in-btn").addEventListener("click", doCheckin);
+    $("van-search").addEventListener("input", function () {
+      renderLocations();
+    });
+
+    $("van-signin-btn").addEventListener("click", doSignIn);
+    $("van-signout-btn").addEventListener("click", doSignOut);
+
+    $("van-markers").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-van]");
+      if (!btn) return;
+      var id = btn.getAttribute("data-van");
+      selectedVanId = selectedVanId === id ? null : id;
+      renderVanMarkers();
+      renderVanCard();
+      var card = $("van-card");
+      if (selectedVanId && card && card.scrollIntoView) card.scrollIntoView({ block: "nearest" });
+    });
+
+    $("van-card-close").addEventListener("click", function () {
+      selectedVanId = null;
+      renderVanMarkers();
+      renderVanCard();
+    });
 
     $("modal-confirm").addEventListener("click", function () {
       var fn = pendingConfirm;
@@ -1019,7 +1361,18 @@
     });
 
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && !$("modal-root").hidden) closeModal();
+      if (e.key !== "Escape") return;
+      if (!$("modal-root").hidden) {
+        closeModal();
+        return;
+      }
+      if (selectedVanId) {
+        selectedVanId = null;
+        if (currentView === "locations") {
+          renderVanMarkers();
+          renderVanCard();
+        }
+      }
     });
 
     window.addEventListener("hashchange", onHash);
@@ -1094,11 +1447,13 @@
     setOfflineBanner();
     registerServiceWorker();
     buildFleet();
+    initVans();
     initEvents();
     renderHome();
     renderShift();
     onHash();
     syncHeaderOffset();
+    setInterval(tickVans, 3000);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
